@@ -6,3 +6,13 @@ __pycache__/
 *.xlsx
 .DS_Store
 
+# Ignore everything
+*
+
+# But keep .gitignore itself
+!.gitignore
+
+# Keep only the descriptive Excel files
+!Descriptive_Statistics_ELB.xlsx
+!Descriptive_Statistics_MAR.xlsx
+
