@@ -16,4 +16,4 @@ Descriptive_Statistics_DUJ.xlsx
 
 This is an additional case study area DUJ (Bohemian Massif).
 It includes quantitative and qualitative groundwater data for 83 monitoring sites.
-There are 167 different parameters measured There are 20 different parameters measured and max. 5,070 datapoints for one individual parameter between 1994-2024.
+There are 167 different parameters measured and max. 5,070 datapoints for one individual parameter between 1994-2024.
