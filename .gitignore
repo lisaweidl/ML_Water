@@ -1,18 +1,19 @@
+# IDE & system
 .idea/
+.DS_Store
+
+# Python
 __pycache__/
 *.pyc
 .venv/
 .env
+
+# Data files (ignore by default)
 *.xlsx
-.DS_Store
 
-# Ignore everything
-*
-
-# But keep .gitignore itself
-!.gitignore
-
-# Keep only the descriptive Excel files
+# Keep important descriptive Excel files
 !Descriptive_Statistics_ELB.xlsx
 !Descriptive_Statistics_MAR.xlsx
 
+# --- IMPORTANT ---
+# Don’t ignore everything — allow code files in repo
