@@ -1,5 +1,3 @@
-# hydrography_quarters_fixed_axis_grid.py
-
 import re
 import numpy as np
 import pandas as pd
@@ -9,27 +7,28 @@ from matplotlib.lines import Line2D
 from pathlib import Path
 
 # ---------- INPUT ----------
-INPUT_FILE = r"/Users/lisa-marieweidl/Desktop/SEEP/MSc Thesis/Data/Water/Hydrographs/WaterLevel_DetailedDate.xlsx"
-SHEET_NAME = 0  # or a sheet name string
+INPUT_FILE = r"/Users/lisa-marieweidl/Desktop/MergingAll/Water_Final.xlsx"
+SHEET_NAME = 0
 
 # ---------- COLUMNS ----------
-DATE_COL = "DATE"
+DATE_COL = "Date"
 ID_COL = "ID"
-LEVEL_COL = "WATER LEVEL"
+LEVEL_COL = "Water_Level"
 
 # ---------- OUTPUT ----------
-OUT_SUBDIR = "hydrography_output_quarters"
-OUT_PREFIX = "hydro_quarters_grid"
+OUT_SUBDIR = "hydrography_output_quarters_switched"
+OUT_PREFIX = "hydro_quarters_grid_switched"
 
 # ---------- PLOT SETTINGS ----------
-POINT_SIZE = 8           # small points
-LINE_WIDTH = 1.0         # connecting line
-WIDTH_INCH = 9
-HEIGHT_PER_TICK = 0.26   # vertical size per quarter
-GREY_LABEL = "0.6"       # missing quarter label color
-OBS_COLOR = "k"          # observed data color
+POINT_SIZE = 8
+LINE_WIDTH = 1.0
+WIDTH_INCH = 13   # landscape format
+HEIGHT_INCH = 6
+GREY_LABEL = "0.6"
+OBS_COLOR = "k"
 XTICK_STEP = 0.5
 X_MAX = 13.0
+LABEL_FONTSIZE = 6
 
 # ---------- HELPERS ----------
 def _safe_filename(s: str) -> str:
@@ -37,13 +36,17 @@ def _safe_filename(s: str) -> str:
     return re.sub(r"[^0-9A-Za-z._-äöüÄÖÜß ]", "", s).replace(" ", "_") or "ID"
 
 def _parse_level(x):
-    if pd.isna(x): return np.nan
+    if pd.isna(x):
+        return np.nan
     s = str(x).strip().replace("\u2212", "-").replace("\xa0", " ")
-    m = re.search(r'[-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?', s)
-    if not m: return np.nan
+    m = re.search(r"[-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?", s)
+    if not m:
+        return np.nan
     token = m.group(0).replace(",", ".")
-    try: return float(token)
-    except ValueError: return np.nan
+    try:
+        return float(token)
+    except ValueError:
+        return np.nan
 
 def _quarter_str(period_q: pd.Period) -> str:
     return f"Q{period_q.quarter} {period_q.year}"
@@ -77,7 +80,8 @@ def main():
     with PdfPages(pdf_file) as pdf:
         for id_val in df[ID_COL].dropna().unique():
             sub = df[df[ID_COL] == id_val].sort_values(DATE_COL)
-            if sub.empty: continue
+            if sub.empty:
+                continue
 
             # Build quarters
             q_index_full = _quarter_range(sub[DATE_COL].min(), sub[DATE_COL].max())
@@ -89,52 +93,54 @@ def main():
             y_all = np.array([_quarter_to_numeric_y(q) for q in q_index_full])
             x_all = quarterly.values.astype(float)
 
-            n_q = len(q_index_full)
-            height = max(HEIGHT_PER_TICK * n_q, 3.0)
-            fig, ax = plt.subplots(figsize=(WIDTH_INCH, height))
+            fig, ax = plt.subplots(figsize=(WIDTH_INCH, HEIGHT_INCH))
 
-            # Open diagram style: hide top/right
+            # add small horizontal padding of 0.5 (left/right)
+            ax.set_xlim(y_all.min() - 0.5, y_all.max() + 0.5)
+            ax.margins(x=0)
+
+            # open diagram style
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
-
-            # Grid in background
             ax.grid(True, which="both", axis="both", linestyle="--", linewidth=0.5, alpha=0.7)
 
-            # Line + dots
+            # plot data (time on x-axis, water level on y-axis)
             if np.isfinite(x_all).any():
-                ax.plot(x_all, y_all, "-", linewidth=LINE_WIDTH, color=OBS_COLOR)
+                ax.plot(y_all, x_all, "-", linewidth=LINE_WIDTH, color=OBS_COLOR)
             obs_mask = ~np.isnan(x_all)
-            ax.scatter(x_all[obs_mask], y_all[obs_mask], s=POINT_SIZE, c=OBS_COLOR)
+            ax.scatter(y_all[obs_mask], x_all[obs_mask], s=POINT_SIZE, c=OBS_COLOR)
 
-            # Y-axis ticks
-            ax.set_yticks(y_all)
-            ax.set_yticklabels([_quarter_str(q) for q in q_index_full])
-            for label, is_missing in zip(ax.get_yticklabels(), np.isnan(x_all)):
+            # X-axis (quarters)
+            ax.set_xticks(y_all)
+            ax.set_xticklabels([_quarter_str(q) for q in q_index_full], rotation=45, ha="right")
+            for label, is_missing in zip(ax.get_xticklabels(), np.isnan(x_all)):
                 if is_missing:
                     label.set_color(GREY_LABEL)
 
-            ax.invert_yaxis()  # latest on top
+            # uniform tick label size
+            ax.tick_params(axis="both", which="major", labelsize=LABEL_FONTSIZE)
 
-            # Fixed X-axis
-            xticks = np.arange(0.0, X_MAX + 1e-9, XTICK_STEP)
-            ax.set_xticks(xticks)
-            ax.set_xlim(0.0, X_MAX)
-            ax.set_xlabel("Water level")
-            ax.set_ylabel("Time")
+            # Y-axis fixed (water level)
+            yticks = np.arange(0.0, X_MAX + 1e-9, XTICK_STEP)
+            ax.set_yticks(yticks)
+            ax.set_ylim(0.0, X_MAX)
+            ax.set_ylabel("Water Level", fontsize=LABEL_FONTSIZE)
+            ax.set_xlabel("Time (quarters)", fontsize=LABEL_FONTSIZE)
 
-            ax.set_title(f"Water Level of {id_val}")
+            ax.set_title(f"Water Level of {id_val}", fontsize=10)
 
+            # legend
             handles = [
-                Line2D([0], [0], color=OBS_COLOR, linewidth=LINE_WIDTH, label="connected quarters"),
-                Line2D([0], [0], marker="o", linestyle="", color=OBS_COLOR, markersize=6, label="quarterly mean"),
+                Line2D([0], [0], color=OBS_COLOR, linewidth=LINE_WIDTH, label="continuous measurements"),
+                Line2D([0], [0], marker="o", linestyle="", color=OBS_COLOR, markersize=6, label="single measurements"),
             ]
-            ax.legend(handles=handles, frameon=False, loc="best")
+            ax.legend(handles=handles, frameon=False, loc="best", fontsize=LABEL_FONTSIZE)
 
             plt.tight_layout()
 
             png_path = out_dir / f"{_safe_filename(OUT_PREFIX)}_{_safe_filename(id_val)}.png"
-            fig.savefig(png_path, dpi=300)
-            pdf.savefig(fig)
+            fig.savefig(png_path, dpi=300, bbox_inches="tight", pad_inches=0.05)
+            pdf.savefig(fig, bbox_inches="tight")
             plt.close(fig)
             print(f"Saved: {png_path}")
 

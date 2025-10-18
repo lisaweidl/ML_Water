@@ -1,17 +1,17 @@
 import pandas as pd
 from pandas.api.types import is_numeric_dtype, is_datetime64_any_dtype, is_bool_dtype
 
-file_path = "/Users/lisa-marieweidl/Desktop/Table2.1/CleanedData_Weather_2109_NA.xlsx"
+file_path = "Cleaned_Weather_2109.xlsx"
 sheet = 0
 ID_COL = "ID"
 DATE_COL = "Date"
 GROUPS = {
-    "191_701": [191, 701],
-    "905_81": [905, 81],
-    "1903_123_1901_1900": [1903, 123, 1901, 1900],
-    "199_2117_2114": [199, 2117, 2114],
+    "191": [191, 701],
+    "905": [905, 81],
+    "1903": [1903, 123, 1901, 1900],
+    "199": [199, 2117, 2114],
 }
-output_xlsx = "merged_id_timeseries_allcols.xlsx"
+output_xlsx = "Merged_Weather.xlsx"
 
 
 def normalize_id(x):
@@ -90,8 +90,8 @@ merged = (
     agg_main
     .merge(n_sources, on=["_group", DATE_COL], how="left")
     .merge(src_ids,  on=["_group", DATE_COL], how="left")
-    .rename(columns={"_group": "Merged_Group", DATE_COL: "Date"})
-    .sort_values(["Merged_Group", "Date"])
+    .rename(columns={"_group": "ID", DATE_COL: "Date"})
+    .sort_values(["ID", "Date"])
     .reset_index(drop=True)
 )
 
@@ -103,7 +103,7 @@ for col in merged.select_dtypes(include=["datetimetz"]).columns:
 
 # --- Write to Excel ---
 with pd.ExcelWriter(output_xlsx) as writer:
-    merged.to_excel(writer, sheet_name="MergedSeriesAllCols", index=False)
+    merged.to_excel(writer, index=False)
 
 print(f"Done. Merged series (all columns) saved to {output_xlsx}")
 print(merged.head(10).to_string(index=False))
