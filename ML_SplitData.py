@@ -17,7 +17,7 @@ df_test  = df.iloc[test_pos].copy()
 df_train.to_excel("df_train.xlsx", index=True)
 df_test.to_excel("df_test.xlsx", index=True)
 
-print("\n Split Summary")
+print("\nSplit Summary")
 print(f"Train: {len(df_train):,}  |  Test: {len(df_test):,}  |  Total: {len(df):,}")
 print("Overlap (row positions):", len(set(train_pos) & set(test_pos)))  # should be 0
 
