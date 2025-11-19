@@ -75,12 +75,19 @@ def plot_ts(df, param, mask, out_dir: Path, pdf=None):
         pdf.savefig(fig, bbox_inches="tight", pad_inches=PAD)
     plt.close(fig)
 
-def plot_ortho_per_id(df, mask, out_dir: Path):
-    param = "ORTHOPHOSPHAT mg/l"
+def plot_param_per_id(df, param, mask, out_dir: Path):
+    """
+    Plot selected parameter per ID (like orthophosphate before),
+    including threshold and trend lines, highlighting outliers.
+    Y-axis is flexible and adapted to data + thresholds.
+    """
     if param not in df.columns or GROUP_COL not in df.columns:
         return
-    thr = THRESHOLDS[param]
-    limit, trend = thr["limit"], thr["trend"]
+
+    thr = THRESHOLDS.get(param, {})
+    limit = thr.get("limit")
+    trend = thr.get("trend")
+
     mask = mask.astype(bool)
 
     for gid, df_id in df.groupby(GROUP_COL):
@@ -89,10 +96,12 @@ def plot_ortho_per_id(df, mask, out_dir: Path):
         valid = s.notna() & dates.notna()
         if not valid.any():
             continue
+
         s, dates = s[valid], dates[valid]
         id_mask = mask.reindex(df_id.index, fill_value=False)[valid]
         out_dates, out_vals = dates[id_mask], s[id_mask]
 
+        # y-range: include data + thresholds if available
         vals_for_range = [s.min(), s.max()]
         for v in (limit, trend):
             if v is not None:
@@ -100,42 +109,35 @@ def plot_ortho_per_id(df, mask, out_dir: Path):
         y_min = min(vals_for_range)
         y_max = max(vals_for_range)
 
-        step = 0.5
-        y_min_tick = int(y_min / step) * step
-        y_max_scaled = y_max / step
-        if y_max_scaled == int(y_max_scaled):
-            y_max_tick = y_max
-        else:
-            y_max_tick = (int(y_max_scaled) + 1) * step
-
-        ticks = []
-        v = y_min_tick
-        while v <= y_max_tick + 1e-9:
-            ticks.append(round(v, 3))
-            v += step
+        # small margin so points/lines are not glued to the border
+        y_range = y_max - y_min if y_max > y_min else 1.0
+        margin = 0.05 * y_range
 
         fig, ax = plt.subplots(figsize=(8, 4.5))
         ax.scatter(dates, s, s=10, alpha=0.5, color="0.5", label="Data")
         if not out_dates.empty:
             ax.scatter(out_dates, out_vals, s=25, color="red", alpha=0.9, label="Outliers")
 
-        ax.set_ylim(y_min_tick, y_max_tick)
-        ax.set_yticks(ticks)
+        ax.set_ylim(y_min - margin, y_max + margin)
+        # let matplotlib choose nice y-ticks automatically
 
-        ax.axhline(limit, color="orange", linestyle="--", linewidth=1.3, label="Threshold")
-        ax.axhline(trend, color="green", linestyle=":", linewidth=1.3, label="Trend reversal")
+        if limit is not None:
+            ax.axhline(limit, color="orange", linestyle="--", linewidth=1.3, label="Threshold")
+        if trend is not None:
+            ax.axhline(trend, color="green", linestyle=":", linewidth=1.3, label="Trend reversal")
 
         ax.set_xlabel("Date", fontsize=FS)
         ax.set_ylabel("Value", fontsize=FS)
-        ax.set_title(f"Orthophosphate for {gid}", fontsize=TS, pad=10)
+        ax.set_title(f"{param} for {gid}", fontsize=TS, pad=10)
         ax.tick_params(axis="both", which="major", labelsize=FS)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
         ax.legend(fontsize=FS - 1)
 
-        fname = out_dir / f"{OUT_PREFIX}_water_orthophosphate_ID_{safe_name(gid)}.png"
+        fname = out_dir / f"{OUT_PREFIX}_water_{safe_name(param)}_ID_{safe_name(gid)}.png"
         fig.savefig(fname, dpi=300, bbox_inches="tight", pad_inches=PAD)
         plt.close(fig)
+
 
 def main():
     in_path = Path(INPUT_FILE).expanduser().resolve()
@@ -158,8 +160,16 @@ def main():
         for col in numeric:
             plot_ts(df, col, outlier_mask[col], out_dir, pdf)
 
-    if "ORTHOPHOSPHAT mg/l" in numeric:
-        plot_ortho_per_id(df, outlier_mask["ORTHOPHOSPHAT mg/l"], out_dir)
+    # Per-ID plots for selected parameters (like orthophosphate before)
+    per_id_params = [
+        "ORTHOPHOSPHAT mg/l",
+        "AMMONIUM mg/l",
+        "NITRIT mg/l",
+        "NITRAT mg/l",
+    ]
+    for param in per_id_params:
+        if param in numeric:
+            plot_param_per_id(df, param, outlier_mask[param], out_dir)
 
     print("Saved:", ts_pdf)
 

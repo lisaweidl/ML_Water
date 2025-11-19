@@ -103,7 +103,7 @@ def main():
             yticks = np.arange(0.0, X_MAX + 1e-9, XTICK_STEP)
             ax.set_yticks(yticks)
             ax.set_ylim(0.0, X_MAX)
-            ax.set_ylabel("Water Level", fontsize=LABEL_FONTSIZE)
+            ax.set_ylabel("Water Level (m)", fontsize=LABEL_FONTSIZE)
             ax.set_xlabel("Time (quarters)", fontsize=LABEL_FONTSIZE)
             ax.set_title(f"Water Level of {id_val}", fontsize=10)
 
