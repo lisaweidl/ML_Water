@@ -4,10 +4,8 @@ from math import sqrt
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-from sklearn.model_selection import permutation_test_score, RandomizedSearchCV
+from sklearn.model_selection import permutation_test_score, KFold, cross_val_score
 from boruta import BorutaPy
-from sklearn.model_selection import permutation_test_score, RandomizedSearchCV, KFold, cross_val_score
-
 
 TARGET = "ORTHOPHOSPHAT mg/l"
 
@@ -17,45 +15,73 @@ test  = pd.read_excel("df_test.xlsx")
 train[TARGET] = pd.to_numeric(train[TARGET], errors="coerce")
 test[TARGET]  = pd.to_numeric(test[TARGET],  errors="coerce")
 
-train = train.dropna(subset=[TARGET])
-test  = test.dropna(subset=[TARGET])
-
 y_train = train[TARGET].values
 y_test  = test[TARGET].values
 
-# numeric predictors
 X_train = train.drop(columns=[TARGET]).select_dtypes(include="number")
 X_test  = test.drop(columns=[TARGET]).select_dtypes(include="number")
 
+# ================================
+# MANUAL HYPERPARAMETER TUNING WITH FOR-LOOPS
+# ================================
 
-#   RANDOMIZED HYPERPARAMETER TUNING
 rf_base = RandomForestRegressor(random_state=42, n_jobs=-1)
 
 param_grid = {
-    "n_estimators": [200, 300, 500],
-    "max_depth": [5, 10, 15, None],
-    "max_features": ["sqrt", "log2", None],
+    "n_estimators":      [200, 300, 500],
+    "max_depth":         [5, 10, 15, None],
+    "max_features":      ["sqrt", "log2", None],
     "min_samples_split": [2, 4, 8],
-    "min_samples_leaf": [1, 2, 4]
+    "min_samples_leaf":  [1, 2, 4]
 }
 
-search = RandomizedSearchCV(
-    estimator=rf_base,
-    param_distributions=param_grid,
-    n_iter=20,
-    scoring="r2",
-    n_jobs=-1,
-    cv=5,
-    random_state=42
-)
+cv_inner = KFold(n_splits=5, shuffle=True, random_state=42)
 
-search.fit(X_train, y_train)
+best_score = -np.inf
+best_params = None
 
-best_params = search.best_params_
-print("Best RF params from RandomizedSearchCV:")
+for n_estimators in param_grid["n_estimators"]:
+    for max_depth in param_grid["max_depth"]:
+        for max_features in param_grid["max_features"]:
+            for min_samples_split in param_grid["min_samples_split"]:
+                for min_samples_leaf in param_grid["min_samples_leaf"]:
+
+                    params = {
+                        "n_estimators": n_estimators,
+                        "max_depth": max_depth,
+                        "max_features": max_features,
+                        "min_samples_split": min_samples_split,
+                        "min_samples_leaf": min_samples_leaf
+                    }
+
+                    rf_tmp = RandomForestRegressor(
+                        random_state=42,
+                        n_jobs=-1,
+                        **params
+                    )
+
+                    scores = cross_val_score(
+                        rf_tmp,
+                        X_train,
+                        y_train,
+                        scoring="r2",
+                        cv=cv_inner,
+                        n_jobs=-1
+                    )
+                    mean_score = scores.mean()
+
+                    if mean_score > best_score:
+                        best_score = mean_score
+                        best_params = params
+
+print("Best RF params from manual for-loop search:")
 print(best_params)
+print(f"Best CV R² (5-fold) during tuning: {best_score:.4f}")
 
-#   BORUTA WITH TUNED RF
+# ================================
+# BORUTA WITH TUNED RF
+# ================================
+
 rf_for_boruta = RandomForestRegressor(
     random_state=42,
     n_jobs=-1,
@@ -64,20 +90,23 @@ rf_for_boruta = RandomForestRegressor(
 
 boruta_selector = BorutaPy(
     estimator=rf_for_boruta,
-    n_estimators='auto',
+    n_estimators=best_params["n_estimators"],
     verbose=2,
     random_state=42
 )
 boruta_selector.fit(X_train.values, y_train)
-
 selected_features = X_train.columns[boruta_selector.support_].tolist()
+
 print(f"#Features used: {len(selected_features)}")
 print(f"Selected features: {selected_features}")
 
 X_train_sel = X_train[selected_features]
 X_test_sel  = X_test[selected_features]
 
-# Cross-validation on training data
+# ================================
+# Cross-validation on training data (10-fold, as before)
+# ================================
+
 cv = KFold(n_splits=10, shuffle=True, random_state=42)
 
 rf_cv = RandomForestRegressor(
@@ -98,7 +127,10 @@ cv_scores = cross_val_score(
 print(f"Mean CV R² ({cv.get_n_splits()}-fold): {cv_scores.mean():.4f}")
 print(f"Std  CV R²: {cv_scores.std():.4f}")
 
+# ================================
 # Final RF fit on full train + test prediction
+# ================================
+
 rf = RandomForestRegressor(
     random_state=42,
     n_jobs=-1,
@@ -136,7 +168,9 @@ print(f"MAE: {mae}")
 print(f"RMSE: {rmse}")
 print(f"P-value (Permutation test on CV R²): {p_value:.5f}")
 
+# ================================
 #   MDA TABLE ON BORUTA-SELECTED FEATURES
+# ================================
 def mda_table(model, X_test_df, y_true, baseline_r2, baseline_mse, baseline_rmse,
               n_repeats=30, seed=42):
     rng = np.random.default_rng(seed)
