@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from math import sqrt
-
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.model_selection import permutation_test_score, KFold, cross_val_score
@@ -21,8 +20,10 @@ y_test  = test[TARGET].values
 X_train = train.drop(columns=[TARGET]).select_dtypes(include="number")
 X_test  = test.drop(columns=[TARGET]).select_dtypes(include="number")
 
+
 # ================================
 # MANUAL HYPERPARAMETER TUNING WITH FOR-LOOPS
+# best approach (highest R2) compared to GridSearch and RandomizedSearch
 # ================================
 
 rf_base = RandomForestRegressor(random_state=42, n_jobs=-1)
@@ -104,7 +105,7 @@ X_train_sel = X_train[selected_features]
 X_test_sel  = X_test[selected_features]
 
 # ================================
-# Cross-validation on training data (10-fold, as before)
+# Cross-validation on training data (10-fold)
 # ================================
 
 cv = KFold(n_splits=10, shuffle=True, random_state=42)
@@ -171,6 +172,7 @@ print(f"P-value (Permutation test on CV R²): {p_value:.5f}")
 # ================================
 #   MDA TABLE ON BORUTA-SELECTED FEATURES
 # ================================
+
 def mda_table(model, X_test_df, y_true, baseline_r2, baseline_mse, baseline_rmse,
               n_repeats=30, seed=42):
     rng = np.random.default_rng(seed)
