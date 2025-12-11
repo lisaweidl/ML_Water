@@ -16,8 +16,8 @@ from boruta import BorutaPy
 TARGET = "ORTHOPHOSPHAT mg/l"
 SEED = 42
 
-train = pd.read_excel("df_train.xlsx")
-test  = pd.read_excel("df_test.xlsx")
+train = pd.read_excel("df_Water_train.xlsx")
+test  = pd.read_excel("df_Water_test.xlsx")
 
 train[TARGET] = pd.to_numeric(train[TARGET], errors="coerce")
 test[TARGET]  = pd.to_numeric(test[TARGET],  errors="coerce")
@@ -32,7 +32,7 @@ X_train = train.drop(columns=[TARGET]).select_dtypes(include="number")
 X_test  = test.drop(columns=[TARGET]).select_dtypes(include="number")
 
 # ================================
-# BORUTA FEATURE SELECTION (RF)
+# BORUTA FEATURE SELECTION
 # ================================
 rf_for_boruta = RandomForestRegressor(
     n_jobs=-1,
@@ -52,7 +52,7 @@ boruta.fit(X_train.values, y_train)
 selected_features  = X_train.columns[boruta.support_].tolist()
 tentative_features = X_train.columns[boruta.support_weak_].tolist()
 
-# Safety: if Boruta selects nothing, fall back
+# if Boruta selects nothing, fall back
 if len(selected_features) == 0:
     selected_features = tentative_features
 if len(selected_features) == 0:
@@ -66,7 +66,7 @@ X_train_sel = X_train[selected_features].copy()
 X_test_sel  = X_test[selected_features].copy()
 
 # ================================
-# MANUAL HYPERPARAMETER TUNING FOR KNN (FOR-LOOPS)
+# MANUAL HYPERPARAMETER TUNING (FOR-LOOPS)
 # ================================
 
 param_grid = {
@@ -159,7 +159,7 @@ print(f"MAE:  {mae:.4f}")
 print(f"RMSE: {rmse:.4f}")
 
 # ================================
-# Permutation-test p-value (KNN)
+# Permutation-test p-value
 # ================================
 score_cv, perm_scores, p_value = permutation_test_score(
     estimator=knn_best,
@@ -224,7 +224,7 @@ def mda_table(model, X_test_df, y_true, baseline_r2, baseline_mse, baseline_rmse
 
 mda_df = mda_table(
     model=knn_best,
-    X_test_df=X_test_sel,  # unscaled; pipeline handles scaling internally
+    X_test_df=X_test_sel,
     y_true=y_test,
     baseline_r2=r2,
     baseline_mse=mse,
@@ -235,4 +235,4 @@ mda_df = mda_table(
 
 print("\n=== KNN MDA ranked by ΔR² ===")
 with pd.option_context("display.max_rows", None, "display.width", 500):
-    print(mda_df[["feature", "delta_R2_mean", "delta_MSE_mean", "delta_RMSE_mean", "p_value"]])
+    print(mda_df[["feature", "delta_R2_mean", "p_value"]])

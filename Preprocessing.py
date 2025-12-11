@@ -1,6 +1,7 @@
 import pandas as pd
 
-df = pd.read_excel("df_Merged.xlsx")
+df = pd.read_excel("Cleaned_Water_2109.xlsx")
+df["ID"] = df["ID"].astype("category")
 
 STATIC_COLS = [
     "ELEVATION",
@@ -11,7 +12,39 @@ STATIC_COLS = [
     "WATER_PERMEABILITY",
 ]
 
-ROLL_WINDOWS = [7, 15, 30, 60]
+weather_cols = {
+    "rr", "rr_i", "rr_iii",
+    "tlmax", "tlmin", "tl_mittel",
+    "vvbft_i", "vvbft_ii", "vvbft_iii",
+    "rf_i", "rf_ii", "rf_iii", "rf_mittel"
+}
+
+water_cols = [
+    "ABSTICH m",
+    "WASSERTEMPERATUR °C",
+    "ELEKTR. LEITF. (bei 25°C) µS/cm",
+    "PH-WERT",
+    "SAUERSTOFFGEHALT mg/l",
+    "GESAMTHAERTE °dH",
+    "KARBONATHAERTE °dH",
+    "CALCIUM mg/l",
+    "MAGNESIUM mg/l",
+    "NATRIUM mg/l",
+    "KALIUM mg/l",
+    "EISEN mg/l",
+    "MANGAN mg/l",
+    "BOR mg/l",
+    "AMMONIUM mg/l",
+    "NITRIT mg/l",
+    "NITRAT mg/l",
+    "CHLORID mg/l",
+    "SULFAT mg/l",
+    "HYDROGENK. mg/l",
+    "ORTHOPHOSPHAT mg/l",
+    "DOC mg/l",
+]
+
+ROLL_WINDOWS = [30, 60]
 
 
 def add_lag_and_rolling_features(
@@ -24,7 +57,6 @@ def add_lag_and_rolling_features(
 ) -> pd.DataFrame:
     df = df.sort_values([id_col, date_col]).copy()
 
-    # delete static columns from df (optional)
     if drop_static:
         cols_to_drop = [c for c in STATIC_COLS if c in df.columns]
         if cols_to_drop:
@@ -33,37 +65,36 @@ def add_lag_and_rolling_features(
     # numeric feature candidates
     num_cols = df.select_dtypes(include="number").columns
 
-    # exclude ID, year
-    exclude = {id_col, year_col}
-    feature_cols = [c for c in num_cols if c not in exclude]
+    # use ONLY weather features for rolling
+    feature_cols = [c for c in num_cols if c in weather_cols]
 
     # --------------------------
-    # LAG 1 FEATURES
+    # LAG 1–3 FEATURES (ONLY WATER COLS)
     # --------------------------
-    for col in feature_cols:
-        df[f"{col}_lag1"] = df.groupby(id_col)[col].shift(1)
+    for col in water_cols:
+        if col in df.columns:  # optional safety
+            df[f"{col}_lag1"] = df.groupby(id_col)[col].shift(1)
+            df[f"{col}_lag2"] = df.groupby(id_col)[col].shift(2)
+            df[f"{col}_lag3"] = df.groupby(id_col)[col].shift(3)
 
     # --------------------------
-    # ROLLING WINDOW FEATURES
+    # ROLLING WINDOW FEATURES (ONLY IF WEATHER COLS EXIST)
     # --------------------------
     roll_features_list = []
 
-    for w in windows:
-        roll = (
-            df.groupby(id_col)[feature_cols]
-              .rolling(w, min_periods=1)
-              .agg(["mean", "min", "max"])
-        )
+    if feature_cols:
+        for w in windows:
+            roll = (
+                df.groupby(id_col)[feature_cols]
+                  .rolling(w, min_periods=1)
+                  .agg(["mean", "min", "max"])
+            )
+            roll.columns = [f"{col}_roll{w}_{stat}" for col, stat in roll.columns]
+            roll = roll.reset_index(level=0, drop=True)
+            roll_features_list.append(roll)
+    else:
+        print("Skip rolling weather features.")
 
-        # flatten MultiIndex columns
-        roll.columns = [f"{col}_roll{w}_{stat}" for col, stat in roll.columns]
-
-        # drop group level and align index with df
-        roll = roll.reset_index(level=0, drop=True)
-
-        roll_features_list.append(roll)
-
-    # concat rolling features back to df
     if roll_features_list:
         df = pd.concat([df] + roll_features_list, axis=1)
 
@@ -74,6 +105,13 @@ def add_lag_and_rolling_features(
     return df
 
 
+# FILTER ONLY FOR WATER FILE 4 IDs
+df = df[df["ID"].isin(["PG31000292", "PG31100282", "PG31100312", "PG31100322"])]
+df = df[(df["Date"].dt.year >= 1994) & (df["Date"].dt.year <= 2007)]
+
 # Experiment with or without static columns
 df_clean = add_lag_and_rolling_features(df, drop_static=True)
-df_clean.to_excel("df_Merged_clean.xlsx", index=False)
+df_clean.to_excel("df_Water.xlsx", index=False)
+
+print(df_clean.head())
+

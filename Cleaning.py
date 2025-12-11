@@ -40,7 +40,7 @@ def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: fl
     df = pd.read_excel(path)
     df.columns = df.columns.str.strip()
 
-    # Ensure first two columns are named ID and Date (A = ID, B = Date)
+    # A = ID, B = Date
     cols = list(df.columns)
     if len(cols) < 2:
         raise ValueError("Expected at least two columns (ID, Date) in the input file.")
@@ -48,7 +48,7 @@ def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: fl
     cols[1] = "Date"
     df.columns = cols
 
-    # Normalize dates (day-level) and add year
+    # Normalize dates and add year
     df["Date"] = _normalize_dates_to_day(df.iloc[:, 1])
     df["year"] = df["Date"].dt.year
 
@@ -91,4 +91,4 @@ OUTPUT_FILE = FILEMAP[MODE]["output"]
 df, params = load_and_clean_first_sheet(INPUT_FILE, MODE.upper(), MISSING_DROP_THRESHOLD)
 df.to_excel(OUTPUT_FILE, index=False)
 print(f"Remaining parameter columns: {len(params)}")
-print(f"✅ Cleaned {MODE} data saved to: {OUTPUT_FILE}")
+print(f"Cleaned {MODE} data saved to: {OUTPUT_FILE}")

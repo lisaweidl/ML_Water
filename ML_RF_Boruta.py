@@ -8,8 +8,8 @@ from boruta import BorutaPy
 
 TARGET = "ORTHOPHOSPHAT mg/l"
 
-train = pd.read_excel("df_train.xlsx")
-test  = pd.read_excel("df_test.xlsx")
+train = pd.read_excel("df_Water_train.xlsx")
+test  = pd.read_excel("df_Water_test.xlsx")
 
 train[TARGET] = pd.to_numeric(train[TARGET], errors="coerce")
 test[TARGET]  = pd.to_numeric(test[TARGET],  errors="coerce")
@@ -19,7 +19,6 @@ y_test  = test[TARGET].values
 
 X_train = train.drop(columns=[TARGET]).select_dtypes(include="number")
 X_test  = test.drop(columns=[TARGET]).select_dtypes(include="number")
-
 
 # ================================
 # MANUAL HYPERPARAMETER TUNING WITH FOR-LOOPS
@@ -228,4 +227,6 @@ mda_df = mda_table(
 
 print("\n=== MDA ranked by ΔR² ===")
 with pd.option_context('display.max_rows', None, 'display.width', 500):
-    print(mda_df[["feature", "delta_R2_mean", "delta_MSE_mean", "delta_RMSE_mean", "p_value"]])
+    print(mda_df[["feature", "delta_R2_mean", "p_value"]])
+
+
