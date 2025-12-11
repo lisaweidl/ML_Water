@@ -9,7 +9,7 @@ __pycache__/
 .env
 
 # Data files (ignore by default)
-#.xlsx
+.xlsx
 
 # Keep important descriptive Excel files
 !Descriptive_Statistics_ELB.xlsx
