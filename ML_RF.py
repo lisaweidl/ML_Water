@@ -8,8 +8,8 @@ from boruta import BorutaPy
 
 TARGET = "ORTHOPHOSPHAT mg/l"
 
-train = pd.read_excel("df_Water_train.xlsx")
-test  = pd.read_excel("df_Water_test.xlsx")
+train = pd.read_excel("Merged_train.xlsx")
+test  = pd.read_excel("Merged_test.xlsx")
 
 train[TARGET] = pd.to_numeric(train[TARGET], errors="coerce")
 test[TARGET]  = pd.to_numeric(test[TARGET],  errors="coerce")
@@ -103,32 +103,9 @@ print(f"Selected features: {selected_features}")
 X_train_sel = X_train[selected_features]
 X_test_sel  = X_test[selected_features]
 
-# ================================
-# Cross-validation on training data (10-fold)
-# ================================
-
-cv = KFold(n_splits=10, shuffle=True, random_state=42)
-
-rf_cv = RandomForestRegressor(
-    random_state=42,
-    n_jobs=-1,
-    **best_params
-)
-
-cv_scores = cross_val_score(
-    rf_cv,
-    X_train_sel,
-    y_train,
-    scoring="r2",
-    cv=cv,
-    n_jobs=-1
-)
-
-print(f"Mean CV R² ({cv.get_n_splits()}-fold): {cv_scores.mean():.4f}")
-print(f"Std  CV R²: {cv_scores.std():.4f}")
 
 # ================================
-# Final RF fit on full train + test prediction
+# Final RF fit on full train + test
 # ================================
 
 rf = RandomForestRegressor(

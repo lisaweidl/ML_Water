@@ -28,8 +28,8 @@ pairs = [s.split("+") for s in MERGE_IDS]
 id_map = pd.DataFrame(pairs, columns=["ID", "ID_weather"])
 id_map["ID_weather"] = id_map["ID_weather"].astype(int)
 
-water = pd.read_excel("Cleaned_Water_2109.xlsx")
-weather = pd.read_excel("Cleaned_Weather_2109.xlsx")
+water = pd.read_excel("Water_Cleaned.xlsx")
+weather = pd.read_excel("Weather_Cleaned.xlsx")
 
 water.columns = water.columns.str.strip()
 weather.columns = weather.columns.str.strip()
@@ -82,5 +82,5 @@ print(rows_per_id)
 df = merged[~merged["ID"].isin(["PG32200042", "PG32200102"])]
 df = df[(df["Date"].dt.year >= 1994) & (df["Date"].dt.year <= 2007)]
 
-df.to_excel("df_Merged.xlsx", index=False)
+df.to_excel("Merged.xlsx", index=False)
 

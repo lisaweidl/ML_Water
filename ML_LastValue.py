@@ -4,7 +4,7 @@ from math import sqrt
 from sklearn.metrics import r2_score, mean_squared_error
 from numpy.random import default_rng
 
-df = pd.read_excel("df_Water_train.xlsx")
+df = pd.read_excel("Merged_train.xlsx")
 
 df["Date"] = pd.to_datetime(df["Date"])
 df = df.sort_values(["ID", "Date"])

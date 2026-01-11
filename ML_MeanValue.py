@@ -8,7 +8,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 TARGET = "ORTHOPHOSPHAT mg/l"
 ID_COL = "ID"
 
-train = pd.read_excel("df_Water_train.xlsx")
+train = pd.read_excel("Merged_train.xlsx")
 
 train[TARGET] = pd.to_numeric(train[TARGET], errors="coerce")
 train[ID_COL] = train[ID_COL].astype(str)

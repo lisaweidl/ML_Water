@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_excel("Cleaned_Water_2109.xlsx")
+df = pd.read_excel("Merged.xlsx")
 df["ID"] = df["ID"].astype("category")
 
 STATIC_COLS = [
@@ -104,14 +104,9 @@ def add_lag_and_rolling_features(
     )
     return df
 
-
-# FILTER ONLY FOR WATER FILE 4 IDs
-df = df[df["ID"].isin(["PG31000292", "PG31100282", "PG31100312", "PG31100322"])]
-df = df[(df["Date"].dt.year >= 1994) & (df["Date"].dt.year <= 2007)]
-
-# Experiment with or without static columns
+# Experiment/ with or without static columns
 df_clean = add_lag_and_rolling_features(df, drop_static=True)
-df_clean.to_excel("df_Water.xlsx", index=False)
+df_clean.to_excel("Merged_FE.xlsx", index=False)
 
 print(df_clean.head())
 

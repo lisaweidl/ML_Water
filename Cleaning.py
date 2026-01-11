@@ -1,17 +1,17 @@
 import pandas as pd
 
-MODE = "water"   # or "weather"
+MODE = "weather"   # or "weather"
 
 MISSING_DROP_THRESHOLD = 0.20
 
 FILEMAP = {
     "weather": {
-        "input":  "Weather_2109.xlsx",
-        "output": "Cleaned_Weather_2109.xlsx",
+        "input":  "Weather_Raw.xlsx",
+        "output": "Weather_Cleaned.xlsx",
     },
     "water": {
-        "input":  "Water_2109.xlsx",
-        "output": "Cleaned_Water_2109.xlsx",
+        "input":  "Water_Raw.xlsx",
+        "output": "Water_Cleaned.xlsx",
     },
 }
 
