@@ -1,16 +1,8 @@
 import pandas as pd
 
+# water or merged
 df = pd.read_excel("Merged.xlsx")
 df["ID"] = df["ID"].astype("category")
-
-STATIC_COLS = [
-    "ELEVATION",
-    "LAND_USE",
-    "SOIL_TYPE",
-    "WATER_AVAILABILITY",
-    "SOURCE_MATERIAL",
-    "WATER_PERMEABILITY",
-]
 
 weather_cols = {
     "rr", "rr_i", "rr_iii",
@@ -46,40 +38,42 @@ water_cols = [
 
 ROLL_WINDOWS = [30, 60]
 
+def print_structure(df: pd.DataFrame, title: str):
+    n = len(df)
+    info = pd.DataFrame({
+        "column": df.columns,
+        "dtype": [str(dt) for dt in df.dtypes],
+        "n_rows": n,
+        "n_missing": [int(df[c].isna().sum()) for c in df.columns],
+    }).set_index("column")[["dtype", "n_rows", "n_missing"]]
+    print(f"\n=== {title} ===")
+    print(info.to_string())
+
+#water or merged
+print_structure(df, "MERGED: loaded (before feature engineering)")
 
 def add_lag_and_rolling_features(
     df: pd.DataFrame,
-    drop_static: bool = False,
     id_col: str = "ID",
     date_col: str = "Date",
-    year_col: str = "year",
     windows=ROLL_WINDOWS,
 ) -> pd.DataFrame:
     df = df.sort_values([id_col, date_col]).copy()
 
-    if drop_static:
-        cols_to_drop = [c for c in STATIC_COLS if c in df.columns]
-        if cols_to_drop:
-            df = df.drop(columns=cols_to_drop)
-
     # numeric feature candidates
     num_cols = df.select_dtypes(include="number").columns
 
-    # use ONLY weather features for rolling
+    # only weather features for rolling
     feature_cols = [c for c in num_cols if c in weather_cols]
 
-    # --------------------------
-    # LAG 1–3 FEATURES (ONLY WATER COLS)
-    # --------------------------
+    # Lag only water features
     for col in water_cols:
-        if col in df.columns:  # optional safety
+        if col in df.columns:
             df[f"{col}_lag1"] = df.groupby(id_col)[col].shift(1)
             df[f"{col}_lag2"] = df.groupby(id_col)[col].shift(2)
             df[f"{col}_lag3"] = df.groupby(id_col)[col].shift(3)
 
-    # --------------------------
-    # ROLLING WINDOW FEATURES (ONLY IF WEATHER COLS EXIST)
-    # --------------------------
+    # rolling window if weather features exist
     roll_features_list = []
 
     if feature_cols:
@@ -104,9 +98,12 @@ def add_lag_and_rolling_features(
     )
     return df
 
-# Experiment/ with or without static columns
-df_clean = add_lag_and_rolling_features(df, drop_static=True)
+
+# Add lags and rolls
+df_clean = add_lag_and_rolling_features(df)
 df_clean.to_excel("Merged_FE.xlsx", index=False)
 
-print(df_clean.head())
+#water or merged
+print_structure(df_clean, "MERGED: loaded (after feature engineering)")
+
 

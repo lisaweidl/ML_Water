@@ -1,0 +1,143 @@
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+from math import sqrt
+import numpy as np
+
+
+df = pd.read_excel("Water_FE.xlsx")
+
+TARGET = "ORTHOPHOSPHAT mg/l"
+X = df.drop(TARGET, axis=1)
+y = df[TARGET]
+
+if "ID" in X.columns:
+    X["ID"] = X["ID"].astype("category")
+    X = pd.get_dummies(X, columns=["ID"], dummy_na=True)
+
+DATE_COL = "Date"
+X[DATE_COL] = pd.to_datetime(X[DATE_COL], errors="coerce")
+
+doy = X[DATE_COL].dt.dayofyear
+X["doy_sin"] = np.sin(2 * np.pi * doy / 365.25)
+X["doy_cos"] = np.cos(2 * np.pi * doy / 365.25)
+X = X.drop(columns=[DATE_COL])
+
+
+#split random
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+rf = RandomForestRegressor(random_state=42)
+rf.fit(X_train, y_train)
+
+y_pred = rf.predict(X_test)
+
+print("R2:", r2_score(y_test, y_pred))
+print("MAE:", mean_absolute_error(y_test, y_pred))
+print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
+
+
+
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+from scipy.stats import randint
+from math import sqrt
+
+# tuning
+param_dist = {
+    "n_estimators": randint(100, 500),
+    "max_depth": randint(3, 15),
+    "min_samples_split": randint(2, 10),
+    "min_samples_leaf": randint(1, 5),
+}
+
+rand_search = RandomizedSearchCV(
+    rf,
+    param_distributions=param_dist,
+    n_iter=10,
+    cv=5,
+    scoring="r2",
+    n_jobs=-1,
+    random_state=42
+)
+
+rand_search.fit(X_train, y_train)
+
+best_rf = rand_search.best_estimator_
+best_params = rand_search.best_params_
+print("Best hyperparameters:", best_params)
+
+
+y_pred_best = rand_search.best_estimator_.predict(X_test)
+print("Tuned R2:", r2_score(y_test, y_pred_best))
+print("Tuned MAE:", mean_absolute_error(y_test, y_pred_best))
+print("Tuned RMSE:", sqrt(mean_squared_error(y_test, y_pred_best)))
+
+
+
+from boruta import BorutaPy
+
+# Boruta to decrease noise
+rf_for_boruta = RandomForestRegressor(
+    random_state=42,
+    n_jobs=-1,
+    **best_params
+)
+
+boruta_selector = BorutaPy(
+    estimator=rf_for_boruta,
+    n_estimators=best_params["n_estimators"],
+    verbose=2,
+    random_state=42
+)
+
+boruta_selector.fit(X_train.values, y_train.values)
+
+selected_features = X_train.columns[boruta_selector.support_].tolist()
+print(f"#Features used: {len(selected_features)}")
+print(f"Selected features: {selected_features}")
+
+X_train_sel = X_train[selected_features]
+X_test_sel  = X_test[selected_features]
+
+# fit final tuned model on selected features
+best_rf.fit(X_train_sel, y_train)
+
+# evaluate boruta model
+y_pred_boruta = best_rf.predict(X_test_sel)
+print("Boruta+Tuned R2:", r2_score(y_test, y_pred_boruta))
+print("Boruta+Tuned MAE:", mean_absolute_error(y_test, y_pred_boruta))
+print("Boruta+Tuned RMSE:", sqrt(mean_squared_error(y_test, y_pred_boruta)))
+
+
+print("Original features:", X_train.shape[1])
+print("Selected features:", len(selected_features))
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+importances = pd.Series(best_rf.feature_importances_, index=selected_features)
+importances = importances.sort_values(ascending=False)
+
+ax = importances.plot(kind="bar")
+ax.set_ylabel("Feature importance")
+plt.tight_layout()
+plt.show()
+
+
+from sklearn.model_selection import permutation_test_score
+
+# Permutation test on train
+score_cv, perm_scores, p_value = permutation_test_score(
+    estimator=best_rf, X=X_train, y=y_train,
+    scoring="r2",
+    n_permutations=200,
+    random_state=42,
+    n_jobs=-1,
+    cv=5,
+)
+
+print(f"Permutation-test p-value (train/CV): {p_value:.5f}")

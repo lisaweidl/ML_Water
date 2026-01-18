@@ -1,8 +1,15 @@
 import pandas as pd
+from sklearn.impute import KNNImputer
+from typing import List
 
-MODE = "weather"   # or "weather"
 
-MISSING_DROP_THRESHOLD = 0.20
+MODE = "water"   # or "weather"
+
+MISSING_DROP_THRESHOLD = 0.25
+
+# KNN imputation
+KNN_N_NEIGHBORS = 5
+KNN_WEIGHTS = "uniform"   # or "distance"
 
 FILEMAP = {
     "weather": {
@@ -35,6 +42,43 @@ def _normalize_dates_to_day(series: pd.Series) -> pd.Series:
         s = s.dt.tz_localize(None)
     return s.dt.floor("D")
 
+def knn_impute_remaining_missing(df: pd.DataFrame, param_cols: List[str]) -> pd.DataFrame:
+    """
+    KNN-impute missing values for (coercible) numeric parameter columns only.
+    Non-numeric parameter columns are left unchanged.
+    """
+    if not param_cols:
+        return df
+
+    # Try to coerce parameter cols to numeric (helps with numeric columns read as object)
+    X = df[param_cols].apply(pd.to_numeric, errors="coerce")
+
+    # Only impute columns that have at least one non-missing value (and at least one missing)
+    valid_cols = [c for c in param_cols if X[c].notna().any()]
+    if not valid_cols:
+        print("KNN: No numeric parameter columns with usable data for imputation. Skipping.")
+        return df
+
+    n_missing_before = int(X[valid_cols].isna().sum().sum())
+    if n_missing_before == 0:
+        print("KNN: No missing values remaining in numeric parameter columns. Skipping.")
+        return df
+
+    imputer = KNNImputer(n_neighbors=KNN_N_NEIGHBORS, weights=KNN_WEIGHTS)
+
+    X_imputed = pd.DataFrame(
+        imputer.fit_transform(X[valid_cols]),
+        columns=valid_cols,
+        index=df.index
+    )
+
+    # Write back only the imputed numeric columns
+    df.loc[:, valid_cols] = X_imputed
+
+    n_missing_after = int(pd.DataFrame(df[valid_cols]).isna().sum().sum())
+    print(f"KNN: missing before = {n_missing_before}, missing after = {n_missing_after} (numeric param cols)")
+
+    return df
 
 def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: float = 0.20):
     df = pd.read_excel(path)
@@ -50,7 +94,6 @@ def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: fl
 
     # Normalize dates and add year
     df["Date"] = _normalize_dates_to_day(df.iloc[:, 1])
-    df["year"] = df["Date"].dt.year
 
     # Keep ID as-is (no recoding)
     print_structure(df, f"{label}: BEFORE cleaning")
@@ -80,6 +123,10 @@ def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: fl
 
     # Recompute remaining parameter columns after dropping
     param_cols = [c for c in df.columns if c not in ["ID", "Date", "year"]]
+
+    # KNN impute remaining missing values
+    df = knn_impute_remaining_missing(df, param_cols)
+
     print_structure(df, f"{label}: AFTER cleaning")
 
     return df, param_cols
