@@ -5,8 +5,8 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from math import sqrt
 import numpy as np
 
-
-df = pd.read_excel("Water_FE.xlsx")
+#water or merged
+df = pd.read_excel("Merged_FE.xlsx")
 
 TARGET = "ORTHOPHOSPHAT mg/l"
 X = df.drop(TARGET, axis=1)
@@ -127,17 +127,23 @@ ax.set_ylabel("Feature importance")
 plt.tight_layout()
 plt.show()
 
+#pvalue
+import numpy as np
 
-from sklearn.model_selection import permutation_test_score
+def p_improves(y_true, pred_model, pred_base, n_perm=5000, seed=42):
+    # one-sided paired permutation (sign-flip) test on absolute errors
+    d = np.abs(y_true - pred_base) - np.abs(y_true - pred_model)   # >0 => model better
+    obs = d.mean()
+    rng = np.random.default_rng(seed)
+    pm = (rng.choice([-1, 1], size=(n_perm, d.size)) * d).mean(axis=1)
+    return (np.sum(pm >= obs) + 1) / (n_perm + 1)
 
-# Permutation test on train
-score_cv, perm_scores, p_value = permutation_test_score(
-    estimator=best_rf, X=X_train, y=y_train,
-    scoring="r2",
-    n_permutations=200,
-    random_state=42,
-    n_jobs=-1,
-    cv=5,
-)
+# baselines (constants from TRAIN)
+mean_pred = np.full(len(y_test), y_train.mean())
+last_pred = np.full(len(y_test), y_train.iloc[-1])
 
-print(f"Permutation-test p-value (train/CV): {p_value:.5f}")
+print("p (Boruta+Tuned vs MEAN):", round(p_improves(y_test.to_numpy(), y_pred_boruta, mean_pred), 5))
+print("p (Boruta+Tuned vs LAST):", round(p_improves(y_test.to_numpy(), y_pred_boruta, last_pred), 5))
+
+print("y_train mean:", y_train.mean())
+print("y_train last:", y_train.iloc[-1])

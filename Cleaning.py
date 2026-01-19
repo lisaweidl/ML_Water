@@ -3,7 +3,7 @@ from sklearn.impute import KNNImputer
 from typing import List
 
 
-MODE = "water"   # or "weather"
+MODE = ("weather")   # or "weather"
 
 MISSING_DROP_THRESHOLD = 0.25
 
@@ -21,6 +21,20 @@ FILEMAP = {
         "output": "Water_Cleaned.xlsx",
     },
 }
+
+def summary_table(df: pd.DataFrame) -> pd.DataFrame:
+    num = df.select_dtypes(include="number")
+    s = pd.DataFrame({
+        "mean": num.mean(),
+        "median": num.median(),
+        "min": num.min(),
+        "max": num.max(),
+        "std": num.std(),
+    })
+    s["dtype"] = df.dtypes.reindex(s.index).astype(str)
+    s["n_missing"] = df[s.index].isna().sum()
+    return s
+
 
 
 def print_structure(df: pd.DataFrame, title: str):
@@ -64,6 +78,10 @@ def knn_impute_remaining_missing(df: pd.DataFrame, param_cols: List[str]) -> pd.
         print("KNN: No missing values remaining in numeric parameter columns. Skipping.")
         return df
 
+    cols_imputed = [c for c in valid_cols if X[c].isna().any()]
+    print("KNN imputed columns:", cols_imputed)
+
+
     imputer = KNNImputer(n_neighbors=KNN_N_NEIGHBORS, weights=KNN_WEIGHTS)
 
     X_imputed = pd.DataFrame(
@@ -98,6 +116,10 @@ def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: fl
     # Keep ID as-is (no recoding)
     print_structure(df, f"{label}: BEFORE cleaning")
 
+    print("\nSUMMARY TABLE BEFORE")
+    print(summary_table(df).to_string())
+
+
     # Define parameter columns = everything except ID/Date/year
     param_cols = [c for c in df.columns if c not in ["ID", "Date", "year"]]
 
@@ -128,6 +150,10 @@ def load_and_clean_first_sheet(path: str, label: str, missing_drop_threshold: fl
     df = knn_impute_remaining_missing(df, param_cols)
 
     print_structure(df, f"{label}: AFTER cleaning")
+
+    print("\nSUMMARY TABLE AFTER")
+    print(summary_table(df).to_string())
+
 
     return df, param_cols
 

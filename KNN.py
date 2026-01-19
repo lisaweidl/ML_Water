@@ -5,8 +5,8 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-
-df = pd.read_excel("Merged_FE.xlsx")
+#water or merged
+df = pd.read_excel("Water_FE.xlsx")
 
 TARGET = "ORTHOPHOSPHAT mg/l"
 X = df.drop(TARGET, axis=1)
@@ -79,16 +79,25 @@ print("MSE:", mse)
 print("RMSE:", rmse)
 
 
-from sklearn.model_selection import permutation_test_score
+#pvalue
+import numpy as np
 
-# Permutation test on train
-score_cv, perm_scores, p_value = permutation_test_score(
-    estimator=knn_best, X=X_train, y=y_train,
-    scoring="r2",
-    n_permutations=200,
-    random_state=42,
-    n_jobs=-1,
-    cv=5,
-)
+def p_improves(y_true, pred_model, pred_base, n_perm=5000, seed=42):
+    d = np.abs(y_true - pred_base) - np.abs(y_true - pred_model)  # >0 => model better
+    obs = d.mean()
+    rng = np.random.default_rng(seed)
+    pm = (rng.choice([-1, 1], size=(n_perm, d.size)) * d).mean(axis=1)
+    return (np.sum(pm >= obs) + 1) / (n_perm + 1)
 
-print(f"Permutation-test p-value (train/CV): {p_value:.5f}")
+yte = y_test.to_numpy()
+mean_pred = np.full(len(y_test), float(y_train.mean()))
+last_pred = np.full(len(y_test), float(y_train.iloc[-1]))
+
+print("\nP-values (Tuned KNN improves):")
+print("KNN+Tuned vs MEAN:", round(p_improves(yte, pred_best, mean_pred), 5))
+print("KNN+Tuned vs LAST:", round(p_improves(yte, pred_best, last_pred), 5))
+
+print("\ny_train mean:", float(y_train.mean()))
+print("y_train last:", float(y_train.iloc[-1]))
+
+
