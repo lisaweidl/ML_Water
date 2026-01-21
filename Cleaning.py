@@ -3,7 +3,7 @@ from sklearn.impute import KNNImputer
 from typing import List
 
 
-MODE = ("weather")   # or "weather"
+MODE = ("water")   # or weather
 
 MISSING_DROP_THRESHOLD = 0.25
 

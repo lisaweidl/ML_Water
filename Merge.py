@@ -9,6 +9,20 @@ MERGE_IDS = [
     "PG32200102+726",
 ]
 
+
+def summary_table(df: pd.DataFrame) -> pd.DataFrame:
+    num = df.select_dtypes(include="number")
+    s = pd.DataFrame({
+        "mean": num.mean(),
+        "median": num.median(),
+        "min": num.min(),
+        "max": num.max(),
+        "std": num.std(),
+    })
+    s["dtype"] = df.dtypes.reindex(s.index).astype(str)
+    s["n_missing"] = df[s.index].isna().sum()
+    return s
+
 def print_structure(df: pd.DataFrame, title: str):
     n = len(df)
     info = pd.DataFrame({
@@ -34,6 +48,9 @@ weather.columns = weather.columns.str.strip()
 print_structure(water, "WATER: loaded (before filtering)")
 print_structure(weather, "WEATHER: loaded (before filtering)")
 
+print(summary_table(water).to_string())
+print(summary_table(weather).to_string())
+
 # keep only those water IDs
 water = water[water["ID"].isin(id_map["ID"])].copy()
 
@@ -45,6 +62,9 @@ weather = weather[weather["ID"].isin(id_map["ID_weather"])].copy()
 
 print_structure(water, "WATER: after ID filter + ID_weather merge")
 print_structure(weather, "WEATHER: after station filter")
+
+print(summary_table(water).to_string())
+print(summary_table(weather).to_string())
 
 # dates
 water["Date"] = pd.to_datetime(water["Date"], errors="coerce").dt.normalize()
