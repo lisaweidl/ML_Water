@@ -5,10 +5,10 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from math import sqrt
 import numpy as np
 
-#water or merged
-df = pd.read_excel("Merged_FE.xlsx")
+#water or joined
+df = pd.read_csv("df_joined.csv")
 
-TARGET = "ORTHOPHOSPHAT mg/l"
+TARGET = "ORTHOPHOSPHATE"  #ORTHOPHOSPHAT mg/l
 X = df.drop(TARGET, axis=1)
 y = df[TARGET]
 
@@ -16,7 +16,7 @@ if "ID" in X.columns:
     X["ID"] = X["ID"].astype("category")
     X = pd.get_dummies(X, columns=["ID"], dummy_na=True)
 
-DATE_COL = "Date"
+DATE_COL = "DATE" #Date
 X[DATE_COL] = pd.to_datetime(X[DATE_COL], errors="coerce")
 
 doy = X[DATE_COL].dt.dayofyear
@@ -24,6 +24,15 @@ X["doy_sin"] = np.sin(2 * np.pi * doy / 365.25)
 X["doy_cos"] = np.cos(2 * np.pi * doy / 365.25)
 X = X.drop(columns=[DATE_COL])
 
+# drop columns with >20% missing
+# when I load the df joined, water temperature rolling windows are all NaN
+threshold = 0.20
+keep_cols = X.columns[X.isna().mean() <= threshold]
+X = X[keep_cols].copy()
+
+# impute remaining with mean
+num_cols = X.select_dtypes(include=[np.number]).columns
+X[num_cols] = X[num_cols].fillna(X[num_cols].mean())
 
 #split random
 X_train, X_test, y_train, y_test = train_test_split(
@@ -41,7 +50,7 @@ print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
 
 
 
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from scipy.stats import randint
 from math import sqrt
@@ -116,16 +125,66 @@ print("Boruta+Tuned RMSE:", sqrt(mean_squared_error(y_test, y_pred_boruta)))
 print("Original features:", X_train.shape[1])
 print("Selected features:", len(selected_features))
 
+
+
+#permutation importance
+import numpy as np
 import pandas as pd
+from sklearn.metrics import r2_score, mean_squared_error
+
+y0 = best_rf.predict(X_test_sel)
+r2_base  = r2_score(y_test, y0)
+mse_base = mean_squared_error(y_test, y0)
+rmse_base = np.sqrt(mse_base)
+
+
+rng = np.random.default_rng(42)
+n_repeats = 30
+
+rows = []
+Xtmp = X_test_sel.copy()
+
+for col in X_test_sel.columns:
+    dR2, dMSE, dRMSE = [], [], []
+    orig = Xtmp[col].to_numpy(copy=True)
+
+    for _ in range(n_repeats):
+        perm = orig.copy()
+        rng.shuffle(perm)
+        Xtmp[col] = perm
+
+        yp = best_rf.predict(Xtmp)
+        r2_p  = r2_score(y_test, yp)
+        mse_p = mean_squared_error(y_test, yp)
+        rmse_p = np.sqrt(mse_p)
+
+        dR2.append(r2_base - r2_p)
+        dMSE.append(mse_p - mse_base)
+        dRMSE.append(rmse_p - rmse_base)
+
+    Xtmp[col] = orig
+
+    dR2 = np.array(dR2)
+    rows.append({
+        "feature": col,
+        "mean_ΔR2": dR2.mean(),
+        "std_ΔR2": dR2.std(ddof=1),
+        "mean_ΔRMSE": np.mean(dRMSE),
+        "robustness_P(perm>=base)": np.mean(dR2 <= 0)
+    })
+
+imp = pd.DataFrame(rows).sort_values("mean_ΔR2", ascending=False)
+top10 = imp.head(10)
+top10
+
 import matplotlib.pyplot as plt
 
-importances = pd.Series(best_rf.feature_importances_, index=selected_features)
-importances = importances.sort_values(ascending=False)
-
-ax = importances.plot(kind="bar")
-ax.set_ylabel("Feature importance")
+plot_df = top10.set_index("feature")
+ax = plot_df["mean_ΔR2"].plot(kind="bar", yerr=plot_df["std_ΔR2"], capsize=3)
+ax.set_ylabel("Mean ΔR²")
 plt.tight_layout()
 plt.show()
+
 
 #pvalue
 import numpy as np

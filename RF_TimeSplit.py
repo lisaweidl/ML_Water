@@ -4,10 +4,10 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from math import sqrt
 
 #water or merged
-df = pd.read_excel("Water_FE.xlsx")
+df = pd.read_csv("df_joined.csv")
 
-TARGET = "ORTHOPHOSPHAT mg/l"
-DATE_COL = "Date"
+TARGET = "ORTHOPHOSPHATE" #ORTHOPHOSPHAT mg/l
+DATE_COL = "DATE" #Date
 ID_COL = "ID"
 TEST_SIZE = 0.2
 
@@ -55,6 +55,21 @@ X_test = X_test[X_train.columns]
 print("Train rows:", len(X_train), "Test rows:", len(X_test))
 print("Train per ID:\n", train_df.groupby(ID_COL).size())
 print("Test per ID:\n", test_df.groupby(ID_COL).size())
+
+
+# when I load the df joined, water temperature rolling windows are all NaN
+import numpy as np
+
+threshold = 0.20
+keep_cols = X_train.columns[X_train.isna().mean() <= threshold]
+X_train = X_train[keep_cols].copy()
+X_test  = X_test.reindex(columns=keep_cols)
+
+num_cols = X_train.select_dtypes(include=[np.number]).columns
+train_means = X_train[num_cols].mean()
+
+X_train[num_cols] = X_train[num_cols].fillna(train_means)
+X_test[num_cols]  = X_test[num_cols].fillna(train_means)
 
 
 #RF
@@ -145,31 +160,63 @@ print("Original features:", X_train.shape[1])
 print("Selected features:", len(selected_features))
 
 
-from sklearn.inspection import permutation_importance
+#permutation importance
+import numpy as np
 import pandas as pd
+from sklearn.metrics import r2_score, mean_squared_error
+
+y0 = best_rf.predict(X_test_sel)
+r2_base  = r2_score(y_test, y0)
+mse_base = mean_squared_error(y_test, y0)
+rmse_base = np.sqrt(mse_base)
+
+
+rng = np.random.default_rng(42)
+n_repeats = 30
+
+rows = []
+Xtmp = X_test_sel.copy()
+
+for col in X_test_sel.columns:
+    dR2, dMSE, dRMSE = [], [], []
+    orig = Xtmp[col].to_numpy(copy=True)
+
+    for _ in range(n_repeats):
+        perm = orig.copy()
+        rng.shuffle(perm)
+        Xtmp[col] = perm
+
+        yp = best_rf.predict(Xtmp)
+        r2_p  = r2_score(y_test, yp)
+        mse_p = mean_squared_error(y_test, yp)
+        rmse_p = np.sqrt(mse_p)
+
+        dR2.append(r2_base - r2_p)
+        dMSE.append(mse_p - mse_base)
+        dRMSE.append(rmse_p - rmse_base)
+
+    Xtmp[col] = orig
+
+    dR2 = np.array(dR2)
+    rows.append({
+        "feature": col,
+        "mean_ΔR2": dR2.mean(),
+        "std_ΔR2": dR2.std(ddof=1),
+        "mean_ΔRMSE": np.mean(dRMSE),
+        "robustness_P(perm>=base)": np.mean(dR2 <= 0)
+    })
+
+imp = pd.DataFrame(rows).sort_values("mean_ΔR2", ascending=False)
+top10 = imp.head(10)
+top10
+
 import matplotlib.pyplot as plt
 
-perm = permutation_importance(
-    best_rf,
-    X_test_sel,
-    y_test,
-    scoring="r2",
-    n_repeats=30,
-    random_state=42,
-    n_jobs=-1
-)
-
-importances = pd.Series(perm.importances_mean, index=X_test_sel.columns).sort_values(ascending=False)
-errors = pd.Series(perm.importances_std, index=X_test_sel.columns).loc[importances.index]
-
-top10 = importances.head(10)
-top10_err = errors.loc[top10.index]
-
-ax = top10.plot(kind="bar", yerr=top10_err, capsize=3)
+plot_df = top10.set_index("feature")
+ax = plot_df["mean_ΔR2"].plot(kind="bar", yerr=plot_df["std_ΔR2"], capsize=3)
 ax.set_ylabel("Mean ΔR²")
 plt.tight_layout()
 plt.show()
-
 
 
 

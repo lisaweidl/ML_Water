@@ -6,9 +6,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 #water or merged
-df = pd.read_excel("Water_FE.xlsx")
+df = pd.read_csv("df_joined.csv")
 
-TARGET = "ORTHOPHOSPHAT mg/l"
+TARGET = "ORTHOPHOSPHATE" #ORTHOPHOSPHAT mg/l
 X = df.drop(TARGET, axis=1)
 y = df[TARGET]
 
@@ -16,7 +16,7 @@ if "ID" in X.columns:
     X["ID"] = X["ID"].astype("category")
     X = pd.get_dummies(X, columns=["ID"], dummy_na=True)
 
-DATE_COL = "Date"
+DATE_COL = "DATE" #Date
 X[DATE_COL] = pd.to_datetime(X[DATE_COL], errors="coerce")
 
 doy = X[DATE_COL].dt.dayofyear
@@ -26,6 +26,19 @@ X = X.drop(columns=[DATE_COL])
 
 # Split the data into training and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# drop cols with >20% missing
+# when I load the df joined, water temperature rolling windows are all NaN
+threshold = 0.20
+keep_cols = X_train.columns[X_train.isna().mean() <= threshold]
+X_train = X_train[keep_cols].copy()
+X_test  = X_test.reindex(columns=keep_cols)
+
+# impute numeric with TRAIN mean (avoid leakage)
+num_cols = X_train.select_dtypes(include=[np.number]).columns
+train_means = X_train[num_cols].mean()
+X_train[num_cols] = X_train[num_cols].fillna(train_means)
+X_test[num_cols]  = X_test[num_cols].fillna(train_means)
 
 # Scale the features using StandardScaler
 scaler = StandardScaler()

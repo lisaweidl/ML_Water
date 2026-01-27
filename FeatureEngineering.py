@@ -1,7 +1,7 @@
 import pandas as pd
 
 # water or merged
-df = pd.read_excel("Merged.xlsx")
+df = pd.read_excel("Water_Cleaned.xlsx")
 df["ID"] = df["ID"].astype("category")
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 
@@ -117,7 +117,7 @@ def add_lag_and_rolling_features(
 
 # Add lags and rolls
 df_clean = add_lag_and_rolling_features(df)
-df_clean.to_excel("Merged_FE.xlsx", index=False)
+df_clean.to_excel("Water_FE.xlsx", index=False)
 
 
 
