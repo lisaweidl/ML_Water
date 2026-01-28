@@ -35,31 +35,30 @@ def chronological_split_by_id(df_in, id_col, test_size=0.2, min_test=1):
 
 train_df, test_df = chronological_split_by_id(df, ID_COL, TEST_SIZE)
 
-drop_cols = [TARGET, DATE_COL]
-X_train = train_df.drop(columns=drop_cols)
+X_train_raw = train_df.drop(columns=[TARGET])
 y_train = train_df[TARGET]
 
-X_test = test_df.drop(columns=drop_cols)
+X_test_raw = test_df.drop(columns=[TARGET])
 y_test = test_df[TARGET]
 
+# groups for CV = IDs of TRAIN rows (aligned with X_train_raw rows)
+groups_train = X_train_raw[ID_COL].to_numpy()
+
+X_train = X_train_raw.drop(columns=[DATE_COL]).copy()
+X_test  = X_test_raw.drop(columns=[DATE_COL]).copy()
+
 X_train[ID_COL] = X_train[ID_COL].astype("category")
-X_test[ID_COL] = X_test[ID_COL].astype("category")
+X_test[ID_COL]  = X_test[ID_COL].astype("category")
 
 X_train = pd.get_dummies(X_train, columns=[ID_COL], dummy_na=True)
-X_test = pd.get_dummies(X_test, columns=[ID_COL], dummy_na=True)
+X_test  = pd.get_dummies(X_test, columns=[ID_COL], dummy_na=True)
 
+# ensure identical columns/order
 X_train, X_test = X_train.align(X_test, join="left", axis=1, fill_value=0)
 X_test = X_test[X_train.columns]
 
-
-print("Train rows:", len(X_train), "Test rows:", len(X_test))
-print("Train per ID:\n", train_df.groupby(ID_COL).size())
-print("Test per ID:\n", test_df.groupby(ID_COL).size())
-
-
-# when I load the df joined, water temperature rolling windows are all NaN
 import numpy as np
-
+# when I load the df joined, water temperature rolling windows are all NaN
 threshold = 0.20
 keep_cols = X_train.columns[X_train.isna().mean() <= threshold]
 X_train = X_train[keep_cols].copy()
@@ -83,11 +82,60 @@ print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
 
 
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+
+class GroupedTimeSeriesSplit:
+
+    def __init__(self, n_splits=5, min_train_size=5, min_val_size=1):
+        self.n_splits = n_splits
+        self.min_train_size = min_train_size
+        self.min_val_size = min_val_size
+
+    def split(self, X, y=None, groups=None):
+        if groups is None:
+            raise ValueError("GroupedTimeSeriesSplit requires 'groups' (e.g., ID values).")
+
+        groups = np.asarray(groups)
+        unique_groups = pd.unique(groups)  # preserves appearance order
+        idx_by_g = {g: np.flatnonzero(groups == g) for g in unique_groups}
+
+        for k in range(self.n_splits):
+            train_idx_all = []
+            val_idx_all = []
+
+            for g in unique_groups:
+                idx = idx_by_g[g]
+                m = len(idx)
+
+                # skip small groups
+                if m < (self.min_train_size + self.min_val_size):
+                    continue
+
+                # pick a forward-moving validation window
+                val_start = int(np.floor((k + 1) * m / (self.n_splits + 1)))
+                val_end   = int(np.floor((k + 2) * m / (self.n_splits + 1)))
+
+                # enforce minimums
+                val_start = max(val_start, self.min_train_size)
+                val_end = max(val_end, val_start + self.min_val_size)
+                val_end = min(val_end, m)
+
+                if val_start >= m or val_end <= val_start:
+                    continue
+
+                train_idx_all.append(idx[:val_start])
+                val_idx_all.append(idx[val_start:val_end])
+
+            if not train_idx_all or not val_idx_all:
+                continue
+
+            yield np.concatenate(train_idx_all), np.concatenate(val_idx_all)
+
+    def get_n_splits(self, X=None, y=None, groups=None):
+        return self.n_splits
+
+from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from math import sqrt
-
-tscv = TimeSeriesSplit(n_splits=5)
 
 param_grid = {
     "n_estimators": [200, 400, 800],
@@ -98,10 +146,12 @@ param_grid = {
     "bootstrap": [True, False],
 }
 
+cv = GroupedTimeSeriesSplit(n_splits=5, min_train_size=5, min_val_size=1)
+
 grid = GridSearchCV(
-    estimator=rf,
+    estimator=RandomForestRegressor(random_state=42),
     param_grid=param_grid,
-    cv=tscv,
+    cv=cv,
     scoring="r2",
     n_jobs=-1,
     verbose=1,
@@ -109,12 +159,13 @@ grid = GridSearchCV(
     return_train_score=True
 )
 
-grid.fit(X_train, y_train)
+grid.fit(X_train, y_train, groups=groups_train)
+
 best_params = grid.best_params_
 best_rf = grid.best_estimator_
 
 print("\nBest CV R2:", grid.best_score_)
-print("Best hyperparameters:", grid.best_params_)
+print("Best hyperparameters:", best_params)
 
 y_pred_best = best_rf.predict(X_test)
 print("\nTUNED R2:", r2_score(y_test, y_pred_best))
@@ -160,13 +211,13 @@ print("Original features:", X_train.shape[1])
 print("Selected features:", len(selected_features))
 
 
-#permutation importance
+##permutation importance
 import numpy as np
 import pandas as pd
 from sklearn.metrics import r2_score, mean_squared_error
 
 y0 = best_rf.predict(X_test_sel)
-r2_base  = r2_score(y_test, y0)
+r2_base = r2_score(y_test, y0)
 mse_base = mean_squared_error(y_test, y0)
 rmse_base = np.sqrt(mse_base)
 
@@ -209,6 +260,7 @@ for col in X_test_sel.columns:
 imp = pd.DataFrame(rows).sort_values("mean_ΔR2", ascending=False)
 top10 = imp.head(10)
 top10
+
 
 import matplotlib.pyplot as plt
 
