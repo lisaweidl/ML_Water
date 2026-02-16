@@ -30,7 +30,7 @@ df = df.sort_values([DATE_COL, ID_COL]).reset_index(drop=True)
 
 unique_dates = pd.Series(df[DATE_COL].unique()).dropna().sort_values().to_numpy()
 
-# ensure at least 1 date in test
+# at least 1 date in test
 n_dates = len(unique_dates)
 n_test_dates = max(1, int(round(n_dates * TEST_FRAC_DATES)))
 cutoff_date = unique_dates[-n_test_dates]  # first date in test period
@@ -130,7 +130,7 @@ param_grid = {
 
 rf_grid = RandomForestRegressor(random_state=42, n_jobs=-1)
 
-# ensure chronological order for CV
+# chronological order for CV
 train_order = train_df.sort_values(DATE_COL).index
 X_train = X_train.loc[train_order]
 y_train = y_train.loc[train_order]

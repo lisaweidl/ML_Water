@@ -4,6 +4,21 @@ df = pd.read_csv("Water_Cleaned.csv", sep=";", encoding="utf-8")
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+plt.style.use("default")
+mpl.rcParams.update(
+    {
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
+        "text.color": "black",
+        "axes.labelcolor": "black",
+        "xtick.color": "black",
+        "ytick.color": "black",
+        "axes.edgecolor": "black",
+    }
+)
 
 data = df.copy()
 DPI = 300
@@ -71,9 +86,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+import os
 
 Z_THR = 3.0
 DPI = 300
+THRESHOLDS_DIR = "thresholds"
+os.makedirs(THRESHOLDS_DIR, exist_ok=True)
 
 THRESHOLDS = {
     "Arsenic": {"limit": 9e-3, "trend": 7.5e-3},
@@ -113,7 +131,8 @@ for param, t in THRESHOLDS.items():
         y0, y1 = min(v.min(), limit, trend), max(v.max(), limit, trend)
         pad = 0.05 * (y1 - y0 if y1 > y0 else 1)
 
-        fig, ax = plt.subplots(figsize=(8, 4.5))
+        fig, ax = plt.subplots(figsize=(8, 4.5), facecolor="white")
+        ax.set_facecolor("white")
         ax.scatter(d, v, s=10, alpha=0.5, color="0.5", label="Data")
         if out.any():
             ax.scatter(d[out], v[out], s=25, color="red", label="Outliers (|z|>3)")
@@ -130,4 +149,8 @@ for param, t in THRESHOLDS.items():
         ax.set_title(f"{param} ({gid})")
         ax.legend()
         plt.tight_layout()
+        safe_param = str(param).replace("/", "_")
+        safe_gid = str(gid).replace("/", "_")
+        out_path = os.path.join(THRESHOLDS_DIR, f"{safe_param}_{safe_gid}.png")
+        plt.savefig(out_path, dpi=DPI, facecolor="white")
         plt.show()
