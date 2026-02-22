@@ -1,24 +1,54 @@
+# %%
 import pandas as pd
+# %%
 
 df = pd.read_csv("Water_Cleaned.csv", sep=";", encoding="utf-8")
+#sep=";", encoding="utf-8"
+# %%
+ID_COL = "ID"
+DATE_COL = "DATE" if "DATE" in df.columns else "Date"
+
+df[DATE_COL] = pd.to_datetime(df[DATE_COL], errors="coerce")
+
+def time_resolution(s):
+    diffs = s.dropna().sort_values().diff().dropna()
+    return diffs.mode().iloc[0] if not diffs.empty else pd.NaT
+
+value_cols = [c for c in df.columns if c not in [ID_COL, DATE_COL]]
+
+out = (
+    df.groupby(ID_COL, dropna=False)
+      .apply(lambda g: pd.Series({
+          "Timeframe_start": g[DATE_COL].min(),
+          "Timeframe_end": g[DATE_COL].max(),
+          "Time_Resolution": time_resolution(g[DATE_COL]),
+          "Total_Values": g.shape[0] * len(value_cols),
+          "Missing_Values": g[value_cols].isna().sum().sum(),
+      }))
+      .reset_index()
+)
+
+for col in ["Timeframe_start", "Timeframe_end"]:
+    out[col] = out[col].dt.strftime("%Y-%m-%d")
+
+print(out.to_string(index=False))
+# %%
 
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 plt.style.use("default")
-mpl.rcParams.update(
-    {
-        "figure.facecolor": "white",
-        "axes.facecolor": "white",
-        "savefig.facecolor": "white",
-        "text.color": "black",
-        "axes.labelcolor": "black",
-        "xtick.color": "black",
-        "ytick.color": "black",
-        "axes.edgecolor": "black",
-    }
-)
+mpl.rcParams.update({
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "savefig.facecolor": "white",
+    "text.color": "black",
+    "axes.labelcolor": "black",
+    "xtick.color": "black",
+    "ytick.color": "black",
+    "axes.edgecolor": "black",
+})
 
 data = df.copy()
 DPI = 300
@@ -44,44 +74,72 @@ for _id, g in data.groupby("ID", sort=True):
     plt.show()
 
 
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-num = df.select_dtypes("number")
-cols = num.columns
-
-fig, axes = plt.subplots(1, len(cols), figsize=(4 * len(cols), 4))
-
-for ax, c in zip(axes, cols):
-    sns.boxplot(y=num[c], ax=ax)
-    ax.set_title(c)
-    ax.set_ylabel("value")
-
-plt.tight_layout()
-plt.show()
-
-
-
+# %%
+import os
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-num = df.select_dtypes("number")
 
-for col in num.columns:
-    s = pd.to_numeric(num[col], errors="coerce").dropna()
+plt.style.use("default")
+plt.rcParams.update({
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "axes.edgecolor": "black",
+    "axes.labelcolor": "black",
+    "xtick.color": "black",
+    "ytick.color": "black",
+    "text.color": "black",
+})
+
+
+HIST_DIR = "histograms_1"
+os.makedirs(HIST_DIR, exist_ok=True)
+
+# QZV-relevant chemical parameter
+QZV_PARAMS = [
+    "Arsenic",
+    "Boron",
+    "Cadmium",
+    "Chromium",
+    "Copper",
+    "Nickel",
+    "Nitrate",
+    "Nitrite",
+    "Mercury",
+    "Ammonium",
+    "Chloride",
+    "Sulfate",
+    "Electrical.Conductivity",
+    "Orthophosphate",
+]
+
+params_in_df = [p for p in QZV_PARAMS if p in df.columns]
+
+for param in params_in_df:
+    s = pd.to_numeric(df[param], errors="coerce").dropna()
     if s.empty:
         continue
 
-    plt.figure()
-    plt.hist(s, bins=29)
-    plt.xlabel(col)
-    plt.ylabel("Frequency")
+    n = int(s.shape[0])
+    bins = int(np.round(np.sqrt(n)))  # square-root rule (n=822 -> 29 bins)
+
+    fig, ax = plt.subplots(figsize=(6.6, 4.2))
+    ax.hist(s, bins=bins, color="dodgerblue", edgecolor="black")
+
+    ax.set_xlabel("Value")
+    ax.set_ylabel("Frequency")
+    ax.set_title(f"{param}")
+
+    for spine in ax.spines.values():
+        spine.set_color("black")
+    ax.tick_params(colors="black")
+
     plt.tight_layout()
+    safe_param = param.replace("/", "_")
+    fig.savefig(os.path.join(HIST_DIR, f"hist_{safe_param}.png"), dpi=300, facecolor="white")
     plt.show()
-
-
-
+# %%
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -133,12 +191,18 @@ for param, t in THRESHOLDS.items():
 
         fig, ax = plt.subplots(figsize=(8, 4.5), facecolor="white")
         ax.set_facecolor("white")
-        ax.scatter(d, v, s=10, alpha=0.5, color="0.5", label="Data")
+        ax.tick_params(colors="black")
+        ax.xaxis.label.set_color("black")
+        ax.yaxis.label.set_color("black")
+        ax.title.set_color("black")
+        for spine in ax.spines.values():
+            spine.set_color("black")
+        ax.scatter(d, v, s=10, alpha=0.5, color="black", label="Data")
         if out.any():
-            ax.scatter(d[out], v[out], s=25, color="red", label="Outliers (|z|>3)")
+            ax.scatter(d[out], v[out], s=25, color="orangered", label="Outliers (|z|>3)")
 
-        ax.axhline(limit, color="orange", ls="--", lw=1.8, label="Threshold")
-        ax.axhline(trend, color="green", ls=":", lw=1.8, label="Trend reversal")
+        ax.axhline(limit, color="darkorange", ls="--", lw=1.8, label="Threshold")
+        ax.axhline(trend, color="dodgerblue", ls=":", lw=1.8, label="Trend reversal")
 
         ax.set_ylim(y0 - pad, y1 + pad)
         ax.xaxis.set_major_locator(mdates.YearLocator(4))
@@ -147,7 +211,7 @@ for param, t in THRESHOLDS.items():
         ax.set_xlabel("Year")
         ax.set_ylabel("Value")
         ax.set_title(f"{param} ({gid})")
-        ax.legend()
+        ax.legend(facecolor="white", edgecolor="black", labelcolor="black")
         plt.tight_layout()
         safe_param = str(param).replace("/", "_")
         safe_gid = str(gid).replace("/", "_")

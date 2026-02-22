@@ -1,4 +1,4 @@
-
+# %%
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
@@ -7,33 +7,38 @@ from boruta import BorutaPy
 from math import sqrt
 import numpy as np
 from sklearn.model_selection import cross_validate
-
+# %%
 # water or merged
 df = pd.read_csv("df_joined.csv")
 # sep=";"
+# %%
+EXCLUDE_FEATURES = ["water_rr",    "water_rr_i",    "water_rr_i_roll30d_max",    "water_rr_i_roll30d_mean",    "water_rr_i_roll30d_min",    "water_rr_i_roll7d_max",    "water_rr_i_roll7d_mean",    "water_rr_i_roll7d_min",    "water_rr_i_roll90d_max",    "water_rr_i_roll90d_mean",    "water_rr_i_roll90d_min",    "water_rr_iii",    "water_rr_iii_roll30d_max",    "water_rr_iii_roll30d_mean",    "water_rr_iii_roll30d_min",    "water_rr_iii_roll7d_max",    "water_rr_iii_roll7d_mean",    "water_rr_iii_roll7d_min",    "water_rr_iii_roll90d_max",    "water_rr_iii_roll90d_mean",    "water_rr_iii_roll90d_min",    "water_rr_roll30d_max",    "water_rr_roll30d_mean",    "water_rr_roll30d_min",    "water_rr_roll7d_max",    "water_rr_roll7d_mean",    "water_rr_roll7d_min",    "water_rr_roll90d_max",    "water_rr_roll90d_mean",    "water_rr_roll90d_min"]
 
+df = df.drop(columns=EXCLUDE_FEATURES, errors="ignore")
+print("Columns after dropping RR features:", df.shape[1])
+# %%
+df.shape[1]
+# %%
 df.describe()
-
+# %%
 
 TARGET = "ORTHOPHOSPHATE"  # Orthophosphate #ORTHOPHOSPHATE
 X = df.drop(TARGET, axis=1)
 y = df[TARGET]
-
+# %%
 
 y = y.fillna(y.mean())
 y
-
+# %%
 
 ID_COL = "ID"
 DATE_COL = "DATE"
 TARGET = "ORTHOPHOSPHATE" # Orthophosphate #ORTHOPHOSPHATE
 TEST_FRAC_DATES = 0.20
-
-
+# %%
 df[DATE_COL] = pd.to_datetime(df[DATE_COL], errors="coerce")
 df = df.dropna(subset=[ID_COL, DATE_COL, TARGET]).copy()
 df = df.sort_values([DATE_COL, ID_COL]).reset_index(drop=True)
-
 
 unique_dates = pd.Series(df[DATE_COL].unique()).dropna().sort_values().to_numpy()
 
@@ -53,70 +58,83 @@ y_test = test_df[TARGET]
 print("Cutoff date:", cutoff_date)
 print("Train date range:", train_df[DATE_COL].min(), "→", train_df[DATE_COL].max())
 print("Test date range:", test_df[DATE_COL].min(), "→", test_df[DATE_COL].max())
+# %%
+print("Train samples:", len(X_train))
+print("Test samples:", len(X_test))
 
+# %%
 
 X_train.tail(4)
-
+# %%
 X_test.head(4)
-
+# %%
 
 # TRAIN
 X_train.head()
-
+# %%
 X_train.info()
+# %%
+for col in X_train.columns:
+    print(f"\n===== {col} =====")
+    print(X_train[col].value_counts(dropna=False))
 
+# %%
 X_train.isnull().sum()
-
+# %%
 
 # drop all-NaN columns from train/test together
 all_nan_cols = X_train.columns[X_train.isna().all()].tolist()
 if all_nan_cols:
     X_train = X_train.drop(columns=all_nan_cols)
     X_test = X_test.drop(columns=all_nan_cols, errors="ignore")
-
-
+# %%
 X_train.isnull().sum()
-
+# %%
 X_train.head()
-
+# %%
 X_train.ID.value_counts()
-
+# %%
 
 X_train = pd.get_dummies(X_train, columns=["ID"], prefix="ID", dtype=int)
 X_train.head()
-
+# %%
 
 X_train["season"] = pd.to_datetime(X_train["DATE"], errors="coerce").dt.month.map(
     {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring", 6: "summer", 7: "summer",
      8: "summer", 9: "fall", 10: "fall", 11: "fall"})
 X_train = pd.get_dummies(X_train.drop(columns=["DATE"]), columns=["season"], dtype=int)
 X_train.head()
-
+# %%
 
 X_train = X_train.copy()
-
+# %%
 
 # TEST
 X_test.head()
-
+# %%
 X_test.info()
+# %%
+for col in X_test.columns:
+    print(f"\n===== {col} =====")
+    print(X_test[col].value_counts(dropna=False))
 
+# %%
 X_test.isnull().sum()
-
+# %%
 
 X_test = pd.get_dummies(X_test, columns=["ID"], prefix="ID", dtype=int)
 X_test.head()
-
+# %%
 
 X_test["season"] = pd.to_datetime(X_test["DATE"], errors="coerce").dt.month.map(
     {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring", 6: "summer", 7: "summer",
      8: "summer", 9: "fall", 10: "fall", 11: "fall"})
 X_test = pd.get_dummies(X_test.drop(columns=["DATE"]), columns=["season"], dtype=int)
 X_test.head()
-
+# %%
 
 X_test = X_test.copy()
-
+# %%
 
 # Align columns
 X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
@@ -132,7 +150,7 @@ if len(cat_cols) > 0:
     X_train = pd.get_dummies(X_train, columns=cat_cols, dtype=int)
     X_test = pd.get_dummies(X_test, columns=cat_cols, dtype=int)
     X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-
+# %%
 
 #rf
 rf = RandomForestRegressor(random_state=42, n_estimators=1000, max_depth=5, n_jobs=-1)
@@ -143,7 +161,7 @@ y_pred = rf.predict(X_test)
 print("R2:", r2_score(y_test, y_pred))
 print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
-
+# %%
 
 
 k = 3
@@ -165,7 +183,7 @@ print(f"\nBASELINE CV on TRAIN (TimeSeriesSplit, {k}-fold mean)")
 print("R2:", round(base_r2_cv, 4))
 print("MAE:", round(base_mae_cv, 4))
 print("RMSE:", round(base_rmse_cv, 4))
-
+# %%
 
 # hyperparameter tuning
 param_grid = {
@@ -205,7 +223,7 @@ print("R2:", r2_score(y_test, y_pred))
 print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
 
-
+# %%
 
 best_rf = grid_search_all.best_estimator_
 
@@ -226,7 +244,7 @@ print("R2:", round(tuned_r2_cv, 4))
 print("MAE:", round(tuned_mae_cv, 4))
 print("RMSE:", round(tuned_rmse_cv, 4))
 
-
+# %%
 
 # boruta
 best_params = grid_search_all.best_params_
@@ -273,7 +291,7 @@ print("R2:", r2_score(y_test, y_pred))
 print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
 
-
+# %%
 
 
 cv_boruta = cross_validate(
@@ -292,8 +310,7 @@ print(f"\nBORUTA CV on TRAIN (TimeSeriesSplit, {k}-fold mean)")
 print("R2:", round(boruta_r2_cv, 4))
 print("MAE:", round(boruta_mae_cv, 4))
 print("RMSE:", round(boruta_rmse_cv, 4))
-
-
+# %%
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
@@ -311,10 +328,11 @@ imp = pd.Series(
 plt.figure(figsize=(8, 6))
 imp.plot(kind="barh", color="dodgerblue")
 
-plt.title("Boruta RF importance")
+plt.title("TimeSplit_Joined_BorutaFeatures")
+plt.xlabel("Feature Importance")
 plt.tight_layout()
 plt.show()
-
+# %%
 
 # comparison
 models = {
@@ -338,7 +356,7 @@ for key, value in models.items():
 df = pd.DataFrame(model_performance, columns=["experiment nr.:", "experiment name", "R2", "MAE", "RMSE"])
 print(df)
 
-
+# %%
 
 df_cv = pd.DataFrame(
     [
@@ -349,7 +367,7 @@ df_cv = pd.DataFrame(
     columns=["experiment nr.:", "experiment name", "R2", "MAE", "RMSE"]
 )
 print(df_cv)
-
+# %%
 
 
 
