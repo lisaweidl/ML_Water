@@ -7,13 +7,3 @@ __pycache__/
 *.pyc
 .venv/
 .env
-
-# Data files (ignore by default)
-.xlsx
-
-# Keep important descriptive Excel files
-!Descriptive_Statistics_ELB.xlsx
-!Descriptive_Statistics_MAR.xlsx
-
-# --- IMPORTANT ---
-# Don’t ignore everything — allow code files in repo
