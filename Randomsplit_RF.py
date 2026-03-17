@@ -1,89 +1,53 @@
-# %%
+
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from math import sqrt
-# %%
 
-#water or merged
+#water or joined
 df = pd.read_csv("Water_FE.csv", sep=";")
 #sep=";"
-# %%
-df.describe()
-# %%
-df.shape[1]
-# %%
+
 TARGET = "Orthophosphate"  #Orthophosphate #ORTHOPHOSPHATE
 X = df.drop(TARGET, axis=1)
 y = df[TARGET]
-# %%
+
 y = y.fillna(y.mean())
 y
-# %%
+
 #split
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=1,
 )
-# %%
+
 #TRAIN
-X_train.info()
-# %%
-X_train.head()
-# %%
-X_train.isnull().sum()
-# %%
 X_train = X_train.dropna(axis=1, how="all")
 X_train[X_train.select_dtypes(include="number").columns] = X_train.select_dtypes(include="number").fillna(
     X_train.select_dtypes(include="number").mean())
-# %%
-X_train.isnull().sum()
-# %%
-X_train.ID.value_counts()
-# %%
+
 X_train = pd.get_dummies(X_train, columns=["ID"], prefix="ID", dtype=int)
-# %%
-X_train.head()
-# %%
+
 X_train["season"] = pd.to_datetime(X_train["DATE"], errors="coerce").dt.month.map(
     {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring", 6: "summer", 7: "summer",
      8: "summer", 9: "fall", 10: "fall", 11: "fall"})
-# %%
+
 X_train = pd.get_dummies(X_train.drop(columns=["DATE"]), columns=["season"], dtype=int)
-# %%
-X_train.head()
-# %%
-X_train = X_train.copy()
-# %%
+
+
 #TEST
-X_test.head()
-# %%
-X_test.info()
-# %%
-df.shape[1]
-# %%
-X_test.isnull().sum()
-# %%
-X_test.ID.value_counts()
-# %%
 X_test = X_test.dropna(axis=1, how="all")
 X_test[X_test.select_dtypes(include="number").columns] = X_test.select_dtypes(include="number").fillna(
     X_test.select_dtypes(include="number").mean())
-# %%
-X_test.isnull().sum()
-# %%
+
 X_test = pd.get_dummies(X_test, columns=["ID"], prefix="ID", dtype=int)
-# %%
-X_test.head()
-# %%
+
 X_test["season"] = pd.to_datetime(X_test["DATE"], errors="coerce").dt.month.map(
     {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring", 6: "summer", 7: "summer",
      8: "summer", 9: "fall", 10: "fall", 11: "fall"})
-# %%
+
 X_test = pd.get_dummies(X_test.drop(columns=["DATE"]), columns=["season"], dtype=int)
-# %%
-X_test.head()
-# %%
+
 # Align columns
 X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
 
@@ -92,17 +56,13 @@ train_means = X_train[num_cols].mean()
 X_train[num_cols] = X_train[num_cols].fillna(train_means)
 X_test[num_cols] = X_test[num_cols].fillna(train_means)
 
-# ensure any remaining categorical columns are encoded
+# remaining categorical columns encoded
 cat_cols = X_train.select_dtypes(include=["object", "category"]).columns
 if len(cat_cols) > 0:
     X_train = pd.get_dummies(X_train, columns=cat_cols, dtype=int)
     X_test = pd.get_dummies(X_test, columns=cat_cols, dtype=int)
     X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-# %%
-X_test.info()
-X_test.head(20)
-X_test = X_test.copy()
-# %%
+
 rf_baseline = RandomForestRegressor(random_state=42, n_estimators=1000, max_depth=5, n_jobs=-1)
 rf_baseline.fit(X_train, y_train)
 y_pred = rf_baseline.predict(X_test)
@@ -111,7 +71,8 @@ print("\nBASELINE TEST")
 print("R2:", r2_score(y_test, y_pred))
 print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
-# %%
+
+
 from sklearn.model_selection import KFold, cross_validate
 
 k = 3
@@ -133,7 +94,8 @@ print(f"\nBASELINE CV on TRAIN ({k}-fold mean)")
 print("R2:", round(base_r2_cv, 4))
 print("MAE:", round(base_mae_cv, 4))
 print("RMSE:", round(base_rmse_cv, 4))
-# %%
+
+
 #hyperparameter tuning
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
@@ -171,7 +133,8 @@ print("\nTUNED TEST")
 print("R2:", r2_score(y_test, y_pred))
 print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
-# %%
+
+
 # tuned CV (R2/MAE/RMSE)
 cv_tuned = cross_validate(
     best_rf,
@@ -189,11 +152,11 @@ print(f"\nTUNED CV on TRAIN ({k}-fold mean)")
 print("R2:", round(tuned_r2_cv, 4))
 print("MAE:", round(tuned_mae_cv, 4))
 print("RMSE:", round(tuned_rmse_cv, 4))
-# %%
+
+
 #boruta
 from boruta import BorutaPy
 
-# boruta
 best_params = grid_search_all.best_params_
 
 forest = RandomForestRegressor(
@@ -214,14 +177,15 @@ boruta.fit(X_train.to_numpy(), y_train.to_numpy())
 print("Selected Features:", boruta.support_)
 print("Ranking:", boruta.ranking_)
 print("Nr of significant features:", boruta.n_features_)
-# %%
+
 selected_rf_features = (
     pd.DataFrame({"Feature": X_train.columns, "Ranking": boruta.ranking_})
     .sort_values(by="Ranking")
     .reset_index(drop=True)
 )
 print(selected_rf_features)
-# %%
+
+
 X_important_train = boruta.transform(X_train.to_numpy())
 X_important_test = boruta.transform(X_test.to_numpy())
 rf_important = RandomForestRegressor(
@@ -236,7 +200,8 @@ print("\nBORUTA TEST")
 print("R2:", r2_score(y_test, y_pred))
 print("MAE:", mean_absolute_error(y_test, y_pred))
 print("RMSE:", sqrt(mean_squared_error(y_test, y_pred)))
-# %%
+
+
 cv_boruta = cross_validate(
     rf_important,
     X_important_train, y_train,
@@ -253,7 +218,8 @@ print(f"\nBORUTA CV on TRAIN ({k}-fold mean)")
 print("R2:", round(boruta_r2_cv, 4))
 print("MAE:", round(boruta_mae_cv, 4))
 print("RMSE:", round(boruta_rmse_cv, 4))
-# %%
+
+
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
@@ -275,7 +241,7 @@ plt.title("RandomSplit_Water_BorutaFeatures")
 plt.xlabel("Feature Importance")
 plt.tight_layout()
 plt.show()
-# %%
+
 
 # comparison
 models = [
@@ -296,7 +262,8 @@ for exp, (name, model, X_te) in enumerate(models, start=1):
 
 df_perf = pd.DataFrame(model_performance, columns=["experiment nr.:", "experiment name", "R2", "MAE", "RMSE"])
 print(df_perf)
-# %%
+
+
 df_cv = pd.DataFrame(
     [
         [1, "RF baseline (CV mean)", base_r2_cv, base_mae_cv, base_rmse_cv],
@@ -307,7 +274,8 @@ df_cv = pd.DataFrame(
 )
 
 print(df_cv)
-# %%
+
+
 import numpy as np
 
 y_true = y_test.to_numpy()
@@ -319,7 +287,6 @@ pred_persist[0] = y_train.iloc[-1]
 pred_persist[1:] = y_true[:-1]
 
 def p_improves_mae_signflip(y_true, pred_model, pred_base, n_perm=5000, seed=42):
-    # per-point improvement in absolute error
     d = np.abs(y_true - pred_base) - np.abs(y_true - pred_model)  # >0 RF better
     obs = d.mean()
 

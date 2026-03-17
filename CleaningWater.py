@@ -61,4 +61,5 @@ RENAME_COLS = {
 
 df = df.rename(columns=RENAME_COLS)
 
+#save file
 df.to_csv("Water_Cleaned.csv", sep=";", index=False)

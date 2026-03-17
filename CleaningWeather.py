@@ -23,6 +23,5 @@ if to_drop:
 
 df = df.sort_values(["ID", "DATE"]).reset_index(drop=True)
 
-#rename columns not needed
-
+# save file
 df.to_csv("Weather_Cleaned.csv", sep=";", index=False)
